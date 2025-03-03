@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, withAuth } from '@/utils/auth';
-import { students, updateStudentStatus, Student } from '@/utils/mockData';
 import { useToast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -11,6 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import ProfileCard from '@/components/ProfileCard';
 import Navbar from '@/components/Navbar';
 import { CheckCircle, XCircle, UserCheck } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { Student } from '@/utils/mockData'; // Keep the type for now
 
 const AdminDashboard = () => {
   const { toast } = useToast();
@@ -19,11 +20,68 @@ const AdminDashboard = () => {
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('pending');
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Load students
-    setAllStudents(students);
-  }, []);
+    // Set up real-time subscription to students table
+    const fetchStudents = async () => {
+      try {
+        setIsLoading(true);
+        const { data, error } = await supabase
+          .from('students')
+          .select('*');
+        
+        if (error) {
+          throw error;
+        }
+        
+        if (data) {
+          // Transform the data to match our Student type
+          const formattedStudents = data.map(student => ({
+            id: student.id,
+            name: student.name,
+            batch: student.batch,
+            school: student.school as 'Coding' | 'Marketing' | 'Design',
+            skills: student.skills,
+            yearsOfExperience: student.years_of_experience,
+            linkedInUrl: student.linkedin_url,
+            resumeUrl: student.resume_url,
+            status: student.status as 'pending' | 'approved' | 'rejected',
+            createdAt: new Date(student.created_at)
+          }));
+          
+          setAllStudents(formattedStudents);
+        }
+      } catch (error) {
+        console.error('Error fetching students:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load students data',
+          variant: 'destructive'
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchStudents();
+    
+    // Set up real-time subscription
+    const subscription = supabase
+      .channel('public:students')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'students' 
+      }, payload => {
+        fetchStudents(); // Refresh data when changes occur
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, [toast]);
 
   useEffect(() => {
     // Filter students based on search and tab
@@ -48,22 +106,48 @@ const AdminDashboard = () => {
     setFilteredStudents(filtered);
   }, [searchQuery, activeTab, allStudents]);
 
-  const handleApproveStudent = (id: string) => {
-    if (updateStudentStatus(id, 'approved')) {
-      setAllStudents([...students]);
+  const handleApproveStudent = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({ status: 'approved' })
+        .eq('id', id);
+      
+      if (error) throw error;
+      
       toast({
         title: 'Student Approved',
         description: 'Student has been approved and is now visible to recruiters.',
       });
+    } catch (error) {
+      console.error('Error approving student:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to approve student',
+        variant: 'destructive'
+      });
     }
   };
 
-  const handleRejectStudent = (id: string) => {
-    if (updateStudentStatus(id, 'rejected')) {
-      setAllStudents([...students]);
+  const handleRejectStudent = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({ status: 'rejected' })
+        .eq('id', id);
+      
+      if (error) throw error;
+      
       toast({
         title: 'Student Rejected',
         description: 'Student application has been rejected.',
+      });
+    } catch (error) {
+      console.error('Error rejecting student:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to reject student',
+        variant: 'destructive'
       });
     }
   };
@@ -156,7 +240,11 @@ const AdminDashboard = () => {
             </TabsList>
           </Tabs>
           
-          {filteredStudents.length === 0 ? (
+          {isLoading ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">Loading students...</p>
+            </div>
+          ) : filteredStudents.length === 0 ? (
             <div className="text-center py-12 border-2 border-dashed rounded-lg">
               <p className="text-muted-foreground">No students found</p>
             </div>

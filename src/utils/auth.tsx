@@ -1,6 +1,7 @@
 
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import { authenticateUser, User, UserRole, Student } from './mockData';
+import { supabase } from '@/integrations/supabase/client';
+import { User, UserRole, Student } from './mockData'; // Keep types for compatibility
 
 type AuthContextType = {
   user: User | null;
@@ -28,24 +29,58 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     // Check if user is stored in localStorage (for persistence)
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setLoading(false);
+    const checkAuth = async () => {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        setUser(JSON.parse(storedUser));
+      }
+      setLoading(false);
+    };
+    
+    checkAuth();
   }, []);
 
   const login = async (username: string, password: string) => {
     try {
-      const user = authenticateUser(username, password);
+      // For this example, we'll continue using mock authentication
+      // In a real app with Supabase, you'd use supabase.auth.signInWithPassword()
       
-      if (user) {
-        setUser(user);
-        localStorage.setItem('user', JSON.stringify(user));
-        return true;
+      // First check if this user exists in our users table
+      const { data, error } = await supabase
+        .from('users')
+        .select('*, students(*)')
+        .eq('username', username)
+        .eq('password', password)
+        .single();
+      
+      if (error || !data) {
+        console.error('Login error:', error);
+        return false;
       }
       
-      return false;
+      // Transform to our User type for compatibility
+      const loggedInUser: User = {
+        id: data.id,
+        username: data.username,
+        password: data.password,
+        role: data.role as UserRole,
+        student: data.students ? {
+          id: data.students.id,
+          name: data.students.name,
+          batch: data.students.batch,
+          school: data.students.school as 'Coding' | 'Marketing' | 'Design',
+          skills: data.students.skills,
+          yearsOfExperience: data.students.years_of_experience,
+          linkedInUrl: data.students.linkedin_url,
+          resumeUrl: data.students.resume_url,
+          status: data.students.status as 'pending' | 'approved' | 'rejected',
+          createdAt: new Date(data.students.created_at)
+        } : undefined
+      };
+      
+      setUser(loggedInUser);
+      localStorage.setItem('user', JSON.stringify(loggedInUser));
+      return true;
     } catch (error) {
       console.error('Login error:', error);
       return false;
