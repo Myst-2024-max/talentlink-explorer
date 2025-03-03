@@ -22,64 +22,75 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('pending');
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    // Set up real-time subscription to students table
-    const fetchStudents = async () => {
-      try {
-        setIsLoading(true);
-        const { data, error } = await supabase
-          .from('students')
-          .select('*');
-        
-        if (error) {
-          throw error;
-        }
-        
-        if (data) {
-          // Transform the data to match our Student type
-          const formattedStudents = data.map(student => ({
-            id: student.id,
-            name: student.name,
-            batch: student.batch,
-            school: student.school as 'Coding' | 'Marketing' | 'Design',
-            skills: student.skills,
-            yearsOfExperience: student.years_of_experience,
-            linkedInUrl: student.linkedin_url,
-            resumeUrl: student.resume_url,
-            status: student.status as 'pending' | 'approved' | 'rejected',
-            createdAt: new Date(student.created_at)
-          }));
-          
-          setAllStudents(formattedStudents);
-        }
-      } catch (error) {
+  // Function to load students data
+  const fetchStudents = async () => {
+    try {
+      setIsLoading(true);
+      console.log('Fetching students data...');
+      
+      const { data, error } = await supabase
+        .from('students')
+        .select('*');
+      
+      if (error) {
         console.error('Error fetching students:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load students data',
-          variant: 'destructive'
-        });
-      } finally {
-        setIsLoading(false);
+        throw error;
       }
-    };
+      
+      if (data) {
+        console.log('Students data received:', data);
+        
+        // Transform the data to match our Student type
+        const formattedStudents = data.map(student => ({
+          id: student.id,
+          name: student.name,
+          batch: student.batch,
+          school: student.school as 'Coding' | 'Marketing' | 'Design',
+          skills: student.skills,
+          yearsOfExperience: student.years_of_experience,
+          linkedInUrl: student.linkedin_url,
+          resumeUrl: student.resume_url,
+          status: student.status as 'pending' | 'approved' | 'rejected',
+          createdAt: new Date(student.created_at)
+        }));
+        
+        setAllStudents(formattedStudents);
+      }
+    } catch (error) {
+      console.error('Error in fetchStudents:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load students data',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  useEffect(() => {
+    // Initial data fetch
     fetchStudents();
     
-    // Set up real-time subscription
-    const subscription = supabase
+    // Set up real-time subscription to students table changes
+    const channel = supabase
       .channel('public:students')
       .on('postgres_changes', { 
         event: '*', 
         schema: 'public', 
         table: 'students' 
       }, payload => {
-        fetchStudents(); // Refresh data when changes occur
+        console.log('Realtime update received:', payload);
+        // Refresh the data when any change occurs
+        fetchStudents();
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Subscription status:', status);
+      });
 
+    // Cleanup function
     return () => {
-      supabase.removeChannel(subscription);
+      supabase.removeChannel(channel);
     };
   }, [toast]);
 

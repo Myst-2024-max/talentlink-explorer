@@ -8,8 +8,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
-import { addStudent, registerUser } from '@/utils/mockData';
 import Navbar from '@/components/Navbar';
+import { supabase } from '@/integrations/supabase/client';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -43,21 +43,38 @@ const Register = () => {
     setLoading(true);
     
     try {
-      // Add the student to the mock database
+      // Create a skills array from the comma-separated string
       const skillsArray = skills.split(',').map(s => s.trim());
       
-      const newStudent = addStudent({
-        name,
-        batch,
-        school: school as 'Coding' | 'Marketing' | 'Design',
-        skills: skillsArray,
-        yearsOfExperience: parseInt(yearsOfExperience),
-        linkedInUrl,
-        resumeUrl,
-      });
+      // First insert the student
+      const { data: studentData, error: studentError } = await supabase
+        .from('students')
+        .insert([{
+          name,
+          batch,
+          school: school as 'Coding' | 'Marketing' | 'Design',
+          skills: skillsArray,
+          years_of_experience: parseInt(yearsOfExperience),
+          linkedin_url: linkedInUrl,
+          resume_url: resumeUrl,
+          status: 'pending'
+        }])
+        .select('id')
+        .single();
       
-      // Create a user account linked to the student
-      registerUser(username, password, 'student', newStudent.id);
+      if (studentError) throw studentError;
+      
+      // Then create a user account linked to the student
+      const { error: userError } = await supabase
+        .from('users')
+        .insert([{
+          username,
+          password,
+          role: 'student',
+          student_id: studentData.id
+        }]);
+      
+      if (userError) throw userError;
       
       toast({
         title: 'Registration successful!',
@@ -67,6 +84,7 @@ const Register = () => {
       // Navigate to the login page
       navigate('/login');
     } catch (error) {
+      console.error('Registration error:', error);
       toast({
         title: 'Registration failed',
         description: 'An error occurred during registration. Please try again.',

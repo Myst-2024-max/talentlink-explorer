@@ -9,7 +9,80 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      students: {
+        Row: {
+          batch: string
+          created_at: string
+          id: string
+          linkedin_url: string
+          name: string
+          resume_url: string
+          school: Database["public"]["Enums"]["school_type"]
+          skills: string[]
+          status: Database["public"]["Enums"]["approval_status"]
+          years_of_experience: number
+        }
+        Insert: {
+          batch: string
+          created_at?: string
+          id?: string
+          linkedin_url: string
+          name: string
+          resume_url: string
+          school: Database["public"]["Enums"]["school_type"]
+          skills: string[]
+          status?: Database["public"]["Enums"]["approval_status"]
+          years_of_experience: number
+        }
+        Update: {
+          batch?: string
+          created_at?: string
+          id?: string
+          linkedin_url?: string
+          name?: string
+          resume_url?: string
+          school?: Database["public"]["Enums"]["school_type"]
+          skills?: string[]
+          status?: Database["public"]["Enums"]["approval_status"]
+          years_of_experience?: number
+        }
+        Relationships: []
+      }
+      users: {
+        Row: {
+          created_at: string
+          id: string
+          password: string
+          role: Database["public"]["Enums"]["user_role"]
+          student_id: string | null
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          password: string
+          role: Database["public"]["Enums"]["user_role"]
+          student_id?: string | null
+          username: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          password?: string
+          role?: Database["public"]["Enums"]["user_role"]
+          student_id?: string | null
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "users_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -18,7 +91,9 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      approval_status: "pending" | "approved" | "rejected"
+      school_type: "Coding" | "Marketing" | "Design"
+      user_role: "admin" | "student" | "recruiter"
     }
     CompositeTypes: {
       [_ in never]: never
