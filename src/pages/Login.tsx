@@ -31,6 +31,7 @@ const Login = () => {
     setLoading(true);
 
     try {
+      console.log(`Submitting login with: ${username} / ${password}`);
       const success = await login(username, password);
 
       if (success) {
@@ -53,6 +54,7 @@ const Login = () => {
         });
       }
     } catch (error) {
+      console.error('Login error:', error);
       toast({
         title: 'Login error',
         description: 'An unexpected error occurred. Please try again.',

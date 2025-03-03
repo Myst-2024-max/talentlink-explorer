@@ -42,21 +42,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (username: string, password: string) => {
     try {
-      // For this example, we'll continue using mock authentication
-      // In a real app with Supabase, you'd use supabase.auth.signInWithPassword()
+      // For this example, we're using direct database query instead of auth
+      console.log(`Attempting login with username: ${username}`);
       
-      // First check if this user exists in our users table
+      // Use maybeSingle instead of single to avoid error when no row is found
       const { data, error } = await supabase
         .from('users')
         .select('*, students(*)')
         .eq('username', username)
         .eq('password', password)
-        .single();
+        .maybeSingle();
       
-      if (error || !data) {
+      if (error) {
         console.error('Login error:', error);
         return false;
       }
+      
+      if (!data) {
+        console.log('No user found with these credentials');
+        return false;
+      }
+      
+      console.log('Login successful, user data:', data);
       
       // Transform to our User type for compatibility
       const loggedInUser: User = {
